@@ -423,9 +423,8 @@ let flashSet='unmastered',flashMode='kana2roma',flashPool=[],flashIdx=0,flashShu
 let traceKana=null,traceDrawing=false,showGuide=true,traceCtx=null,guideCtx=null;
 let dictLang='zh';
 
-// ═══════════════ SPEECH
-// ═══════════════ AUDIO — Google TTS（微信/所有浏览器兼容）
-// 假名 → 单独音频文件（基础46个，已下载）
+// ═══════════════ AUDIO
+// 清音46个 → 本地文件 audio/*.mp3
 const kanaAudioMap={
   'あ':'a','い':'i','う':'u','え':'e','お':'o',
   'か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko',
@@ -436,23 +435,23 @@ const kanaAudioMap={
   'ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
   'や':'ya','ゆ':'yu','よ':'yo',
   'ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro',
-  'わ':'wa','を':'wo','ん':'n',
-  'うぇ':'we','うぃ':'wi'
+  'わ':'wa','を':'wo','ん':'n'
+};
+// 浊音/半浊音 → 映射到对应清音文件
+const dakutenAudioMap={
+  'が':'ka','ぎ':'ki','ぐ':'ku','げ':'ke','ご':'ko',
+  'ざ':'sa','じ':'shi','ず':'su','ぜ':'se','ぞ':'so',
+  'だ':'ta','ぢ':'chi','づ':'tsu','で':'te','ど':'to',
+  'ば':'ha','び':'hi','ぶ':'fu','べ':'he','ぼ':'ho',
+  'ぱ':'ha','ぴ':'hi','ぷ':'fu','ぺ':'he','ぽ':'ho'
 };
 let currentAudio=null;
 function speakKana(char,btn){
   if(!char)return;
-  // 停止当前播放
   if(currentAudio){currentAudio.pause();currentAudio.currentTime=0;}
   if(btn&&btn.classList)btn.classList.add('playing');
   const done=()=>{if(btn&&btn.classList)btn.classList.remove('playing')};
-  // 优先用Google TTS（兼容微信）
-  const url=`https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=ja&client=gtx&q=${encodeURIComponent(char)}`;
-  const audio=new Audio(url);
-  currentAudio=audio;
-  audio.onended=done;
-  audio.onerror=()=>{
-    // 降级：使用Web Speech API
+  const fallback=()=>{
     done();
     if(!window.speechSynthesis)return;
     window.speechSynthesis.cancel();
@@ -463,7 +462,23 @@ function speakKana(char,btn){
     if(jv)u.voice=jv;
     window.speechSynthesis.speak(u);
   };
-  audio.play().catch(()=>audio.onerror());
+  // 单个假名：用本地文件
+  const localFile=kanaAudioMap[char]||dakutenAudioMap[char];
+  if(localFile){
+    const audio=new Audio(`audio/${localFile}.mp3`);
+    currentAudio=audio;
+    audio.onended=done;
+    audio.onerror=fallback;
+    audio.play().catch(fallback);
+    return;
+  }
+  // 词典词语：用Google TTS（微信外浏览器）
+  const url=`https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=ja&client=gtx&q=${encodeURIComponent(char)}`;
+  const audio=new Audio(url);
+  currentAudio=audio;
+  audio.onended=done;
+  audio.onerror=fallback;
+  audio.play().catch(fallback);
 }
 
 // ═══════════════ TAB
